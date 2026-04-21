@@ -1,0 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  body {
+    @apply text-white antialiased overflow-hidden min-h-screen font-sans;
+    background: radial-gradient(circle at 10% 20%, #1e293b 0%, #0f172a 100%), 
+                radial-gradient(circle at 90% 80%, #312e81 0%, transparent 50%);
+    background-attachment: fixed;
+  }
+}
+
+.glass-card {
+  @apply bg-white/10 backdrop-blur-[20px] border border-white/20 rounded-[24px];
+}
+
+.glass-input {
+  @apply bg-black/30 border border-white/15 rounded-[12px] p-3 text-white/90 outline-none focus:border-indigo-400 transition-colors;
+}
+
+.glass-button {
+  @apply bg-indigo-500 hover:bg-indigo-400 text-white font-bold py-3 px-6 rounded-[12px] transition-all transform active:scale-95 shadow-lg shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.title-gradient {
+  @apply bg-linear-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent;
+}
+
+.paint-label {
+  font-family: 'Comic Sans MS', 'Comic Sans', cursive;
+}
+
