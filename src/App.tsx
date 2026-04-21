@@ -1,10 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Palette, Trash2, Play, Trophy, RotateCcw, Paintbrush, Music, Settings } from 'lucide-react';
-import ReactPlayer from 'react-player';
-
-// Workaround for typing issues in some environments
-const Player = ReactPlayer as any;
 
 interface FlyingName {
   id: number;
@@ -30,13 +26,43 @@ export default function App() {
   const [flyingNames, setFlyingNames] = useState<FlyingName[]>([]);
   const [timeLeft, setTimeLeft] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isPlayerReady, setIsPlayerReady] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+  const [audioFile, setAudioFile] = useState<string | null>(null);
   
-  // Local audio file name
-  const audioUrl = '/muzyka.mp3';
-  
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const drawingInterval = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    // Try to load the default muzyka.mp3
+    const audio = new Audio('/muzyka.mp3');
+    audio.loop = true;
+    
+    const handleCanPlay = () => setIsReady(true);
+    const handleError = () => {
+      console.log("muzyka.mp3 not found or blocked. Waiting for manual upload.");
+      setIsReady(false);
+    };
+
+    audio.addEventListener('canplaythrough', handleCanPlay);
+    audio.addEventListener('error', handleError);
+    
+    audioRef.current = audio;
+
+    return () => {
+      audio.removeEventListener('canplaythrough', handleCanPlay);
+      audio.removeEventListener('error', handleError);
+      audio.pause();
+    };
+  }, []);
+
+  // Update audio source if a file is manually picked
+  useEffect(() => {
+    if (audioFile && audioRef.current) {
+      audioRef.current.src = audioFile;
+      audioRef.current.load();
+    }
+  }, [audioFile]);
 
   const DURATION = 18000; // 18 seconds total
 
@@ -49,8 +75,11 @@ export default function App() {
     setNames(list);
     setIsDrawing(true);
     
-    // Only attempt to play if the player has signaled it is ready
-    if (isPlayerReady) {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(e => {
+        console.warn("Autoplay blocked or file missing:", e);
+      });
       setIsPlaying(true);
     }
     
@@ -84,8 +113,27 @@ export default function App() {
           clearInterval(timerRef.current!);
           clearInterval(drawingInterval.current!);
           setIsDrawing(false);
-          // Small delay before stopping music to prevent "play() interrupted" errors
-          setTimeout(() => setIsPlaying(false), 50);
+          
+          if (audioRef.current) {
+            // Fade out
+            let vol = audioRef.current.volume;
+            const fade = setInterval(() => {
+              if (vol > 0.05) {
+                vol -= 0.05;
+                if (audioRef.current) audioRef.current.volume = vol;
+              } else {
+                clearInterval(fade);
+                if (audioRef.current) {
+                  audioRef.current.pause();
+                  audioRef.current.volume = 0.5; // Reset
+                }
+                setIsPlaying(false);
+              }
+            }, 50);
+          } else {
+            setIsPlaying(false);
+          }
+
           setWinner(finalWinner);
           return 0;
         }
@@ -94,9 +142,22 @@ export default function App() {
     }, 100);
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setAudioFile(url);
+      setIsReady(true);
+    }
+  };
+
   const reset = () => {
     setIsDrawing(false);
-    setTimeout(() => setIsPlaying(false), 50);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setIsPlaying(false);
     setWinner(null);
     setFlyingNames([]);
     setTimeLeft(0);
@@ -113,29 +174,28 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-4">
-      {/* Hidden Player */}
-      <div className="hidden">
-        <Player 
-          url={audioUrl}
-          playing={isPlaying}
-          loop={true}
-          volume={0.8}
-          onReady={() => setIsPlayerReady(true)}
-          onError={(e: any) => {
-            console.error("Audio error:", e);
-            setIsPlayerReady(false);
-          }}
-        />
-      </div>
-
       {/* Container optimized for IG recording */}
       <div className="w-full max-w-[450px] aspect-[9/16] glass-card overflow-hidden flex flex-col relative shadow-2xl">
         
         {/* Top Header */}
-        <div className="p-6 text-center border-b border-white/10">
+        <div className="p-6 text-center border-b border-white/10 flex items-center justify-between">
+          <div className="w-8" />
           <h1 className="text-3xl font-black title-gradient tracking-tighter uppercase italic">
             LOSOWANIE
           </h1>
+          
+          {/* Audio Indicator / Manual Upload */}
+          <div className="relative group">
+            <label className={`cursor-pointer transition-colors ${isReady ? 'text-green-400' : 'text-red-400'}`}>
+              <Music size={20} />
+              <input type="file" accept="audio/*" className="hidden" onChange={handleFileUpload} />
+            </label>
+            {!isReady && (
+              <div className="absolute top-full right-0 mt-2 w-48 p-2 bg-black/80 rounded border border-white/10 text-[10px] text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                Nie znaleziono pliku muzyka.mp3. Kliknij ikonę nuty, aby wgrać muzykę ręcznie.
+              </div>
+            )}
+          </div>
         </div>
         
         {/* Name Input Area (visible only when not drawing/no winner) */}
